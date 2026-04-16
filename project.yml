@@ -1,0 +1,61 @@
+name: MobilePT
+options:
+  bundleIdPrefix: com.mobilept
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+targets:
+  MobilePT:
+    type: application
+    platform: iOS
+    sources:
+      - MobilePT
+    resources:
+      - path: MobilePT/Resources/pose_landmarker_heavy.task
+        buildPhase: resources
+    dependencies:
+      - framework: Frameworks/MediaPipeTasksVision.xcframework
+      - framework: Frameworks/MediaPipeTasksCommon.xcframework
+      - sdk: Accelerate.framework
+      - sdk: CoreMedia.framework
+      - sdk: CoreVideo.framework
+      - sdk: Metal.framework
+    settings:
+      base:
+        INFOPLIST_FILE: MobilePT/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.mobilept.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        DEVELOPMENT_TEAM: ""
+        OTHER_LDFLAGS:
+          - "-lc++"
+          - "-ObjC"
+          - "-force_load"
+          - "$(PROJECT_DIR)/Frameworks/libMediaPipeTasksCommon_device_graph.a"
+        LIBRARY_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Frameworks"
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Frameworks"
+          - "$(PROJECT_DIR)/Frameworks/MediaPipeTasksVision.xcframework/ios-arm64"
+          - "$(PROJECT_DIR)/Frameworks/MediaPipeTasksCommon.xcframework/ios-arm64"
+        HEADER_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Frameworks/MediaPipeTasksVision.xcframework/ios-arm64/MediaPipeTasksVision.framework/Headers"
+          - "$(PROJECT_DIR)/Frameworks/MediaPipeTasksCommon.xcframework/ios-arm64/MediaPipeTasksCommon.framework/Headers"
+        SWIFT_ENABLE_EXPLICIT_MODULES: "NO"
+        CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES: "YES"
+    info:
+      path: MobilePT/Info.plist
+      properties:
+        NSCameraUsageDescription: "운동 자세를 분석하기 위해 카메라 접근이 필요합니다."
+        NSMicrophoneUsageDescription: "AI 코치와 실시간 음성 대화를 위해 마이크 접근이 필요합니다."
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiresFullScreen: true
