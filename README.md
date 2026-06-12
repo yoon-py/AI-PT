@@ -40,3 +40,9 @@ open MobilePT.xcodeproj
 ```
 
 `MobilePT/Resources/pose_landmarker_heavy.task` 모델 파일과 `Frameworks/` 하위 MediaPipe xcframework가 필요합니다.
+
+## 로컬 AI 기능 설정
+
+OpenAI API 키는 앱 소스, `Info.plist`, 번들 리소스에 저장하지 않습니다.
+로컬 데모에서만 Xcode Scheme의 환경변수 `OPENAI_API_KEY`로 주입합니다.
+배포 환경에서는 서버 프록시에서 API 키를 관리해야 합니다.

@@ -8,27 +8,37 @@ final class ExerciseViewModel: ObservableObject {
     @Published var exerciseState = ExerciseState()
     @Published var latestFeedback: FeedbackMessage?
     @Published var isSessionActive = false
-    @Published var isAICoachConnected = false
+    /// True when no OpenAI key is configured — voice coaching is silent.
+    @Published var voiceUnavailable = false
+    /// 준비 카운트다운이 끝나기 전엔 false — 반복/코칭 측정을 멈춰둔다(스켈레톤은 계속 표시).
+    @Published var analysisEnabled = false
     @Published var debugStatus: String = "초기화 중..."
     @Published var frameCount: Int = 0
 
     let cameraManager = CameraManager()
     private let poseDetector = PoseDetector()
     private var analyzer: any ExerciseAnalyzer
-    private let feedbackEngine = FeedbackEngine()
+    private let ttsService: OpenAITTSService
+    private let llmCoach: LLMCoachService
     private var poseSmoother = PoseSmoother()
     private var displayLink: CADisplayLink?
 
     let exerciseType: ExerciseType
-    let realtimeService: OpenAIRealtimeService
 
-    init(exercise: ExerciseType = .squat) {
+    init(exercise: ExerciseType = .squat, inBody: InBodyResult? = nil) {
         self.exerciseType = exercise
+        // 로컬 데모는 Xcode Scheme 환경변수 OPENAI_API_KEY로만 켠다.
         let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
-            ?? Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String
-            ?? ""
-        self.realtimeService = OpenAIRealtimeService(apiKey: apiKey)
-        switch exercise {
+            ?? Secrets.openAIAPIKey
+        let tts = OpenAITTSService(apiKey: apiKey)
+        self.ttsService = tts
+        self.llmCoach = LLMCoachService(
+            apiKey: apiKey,
+            exerciseType: exercise.rawValue,
+            userProfile: inBody?.coachProfileSummary
+        )
+        self.voiceUnavailable = !tts.isConfigured
+        switch exercise.analyzerKind {
         case .squat:
             self.analyzer = SquatAnalyzer()
         case .pushUp:
@@ -37,6 +47,16 @@ final class ExerciseViewModel: ObservableObject {
             self.analyzer = PlankAnalyzer()
         }
         setupPipeline()
+        // LLM이 코칭 문장을 주면 화면 배너 + 음성으로 전달
+        llmCoach.onCoaching = { [weak self] line in
+            Task { @MainActor in self?.handleCoaching(line) }
+        }
+    }
+
+    @MainActor
+    private func handleCoaching(_ line: String) {
+        latestFeedback = FeedbackMessage(text: line, type: .coaching, priority: 5)
+        ttsService.speak(line)
     }
 
     private func setupPipeline() {
@@ -68,46 +88,60 @@ final class ExerciseViewModel: ObservableObject {
             return
         }
         let smoothed = poseSmoother.smooth(pose)
-        let feedback = analyzer.analyze(pose: smoothed)
         currentPose = smoothed
-        exerciseState = analyzer.state
-        feedbackEngine.process(feedback)
-        latestFeedback = feedbackEngine.latestFeedback
 
-        // Send pose context + feedback to OpenAI
-        if isAICoachConnected {
-            var context = buildPoseContext(smoothed)
-            if !feedback.isEmpty {
-                let feedbackTexts = feedback.map { $0.text }.joined(separator: ", ")
-                context += " | 피드백: \(feedbackTexts)"
-            }
-            realtimeService.updatePoseContext(context)
-        }
+        // 준비 카운트다운 중에는 스켈레톤만 보여주고 측정/코칭은 멈춤
+        guard analysisEnabled else { return }
+
+        // analyzer = 객관적 측정 (각도, 단계, 반복수, 규칙 기반 감지)
+        let ruleFeedback = analyzer.analyze(pose: smoothed)
+        exerciseState = analyzer.state
+
+        // 측정 결과를 요약해 LLM에 전달 → 전문가 판단을 코칭 문장으로 받음
+        // (간격 제한·중복 제거는 LLMCoachService 내부에서 처리)
+        let context = buildPoseContext(detectedSignals: ruleFeedback)
+        llmCoach.coach(context: context)
     }
 
-    private func buildPoseContext(_ pose: BodyPose) -> String {
+    /// 센서 측정값을 LLM이 읽을 수 있는 요약 텍스트로 변환
+    private func buildPoseContext(detectedSignals: [FeedbackMessage]) -> String {
         var parts: [String] = []
         parts.append("운동: \(exerciseType.rawValue)")
         parts.append("단계: \(exerciseState.phase.rawValue)")
         parts.append("반복: \(exerciseState.repCount)회")
 
-        if exerciseType == .plank {
+        if exerciseType.analyzerKind == .plank {
             parts.append("유지시간: \(Int(exerciseState.holdTime))초")
         }
 
         for (key, value) in exerciseState.currentAngles {
-            parts.append("\(key): \(Int(value))°")
+            parts.append("\(key): \(Int(value))도")
         }
 
-        parts.append("폼 정확: \(exerciseState.isFormCorrect ? "O" : "X")")
+        parts.append("폼정확: \(exerciseState.isFormCorrect ? "정상" : "문제있음")")
+
+        if !detectedSignals.isEmpty {
+            let signals = detectedSignals.map { $0.text }.joined(separator: ", ")
+            parts.append("센서감지: \(signals)")
+        }
 
         return parts.joined(separator: ", ")
     }
 
+    /// 준비 카운트다운 종료 후 측정/코칭 시작
+    func enableAnalysis() { analysisEnabled = true }
+
+    /// 운동 시작 음성 안내 (TTS)
+    func announceIntro(goal: Int) {
+        let unit = exerciseType.goalUnit
+        ttsService.speak("\(exerciseType.rawValue) \(goal)\(unit) 시작합니다. 천천히 따라오세요.")
+    }
+
     func startSession() {
         analyzer.reset()
-        feedbackEngine.reset()
+        llmCoach.reset()
         poseSmoother.reset()
+        analysisEnabled = false
         isSessionActive = true
 
         debugStatus = poseDetector.isReady ? "모델 로드 완료" : "모델 로드 실패!"
@@ -124,27 +158,12 @@ final class ExerciseViewModel: ObservableObject {
         cameraManager.checkAuthorization()
     }
 
-    func toggleAICoach() {
-        if isAICoachConnected {
-            realtimeService.disconnect()
-            isAICoachConnected = false
-            feedbackEngine.muteLocalVoice = false
-        } else {
-            realtimeService.connect(exerciseType: exerciseType.rawValue)
-            isAICoachConnected = true
-            feedbackEngine.muteLocalVoice = true
-        }
-    }
-
     func stopSession() {
         cameraManager.stopSession()
         isSessionActive = false
         displayLink?.invalidate()
         displayLink = nil
-        if isAICoachConnected {
-            realtimeService.disconnect()
-            isAICoachConnected = false
-        }
+        ttsService.stop()
     }
 }
 

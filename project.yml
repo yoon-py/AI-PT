@@ -47,11 +47,17 @@ targets:
           - "$(PROJECT_DIR)/Frameworks/MediaPipeTasksCommon.xcframework/ios-arm64/MediaPipeTasksCommon.framework/Headers"
         SWIFT_ENABLE_EXPLICIT_MODULES: "NO"
         CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES: "YES"
+    entitlements:
+      path: MobilePT/MobilePT.entitlements
+      properties:
+        com.apple.developer.healthkit: true
     info:
       path: MobilePT/Info.plist
       properties:
         NSCameraUsageDescription: "운동 자세를 분석하기 위해 카메라 접근이 필요합니다."
-        NSMicrophoneUsageDescription: "AI 코치와 실시간 음성 대화를 위해 마이크 접근이 필요합니다."
+        NSMotionUsageDescription: "걸음 수와 걷기 칼로리를 계산하기 위해 동작·피트니스 데이터에 접근합니다."
+        NSHealthShareUsageDescription: "소모 칼로리와 걸음 등 활동량을 정확히 계산하기 위해 건강 데이터를 읽습니다."
+        NSHealthUpdateUsageDescription: "완료한 운동과 소모 칼로리를 건강 앱에 기록합니다."
         UILaunchScreen:
           UIColorName: ""
         UISupportedInterfaceOrientations:

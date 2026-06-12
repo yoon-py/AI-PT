@@ -20,5 +20,8 @@ xcuserdata/
 # Claude
 .claude/
 
+# 로컬 API 키 (커밋 금지)
+MobilePT/Secrets.swift
+
 # GitHub 100MB 제한 초과 (별도 다운로드 필요)
 Frameworks/libMediaPipeTasksCommon_simulator_graph.a

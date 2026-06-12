@@ -20,18 +20,28 @@ struct ExerciseState {
     var isFormCorrect: Bool = true
 }
 
-enum ExerciseType: String, CaseIterable, Identifiable {
+enum ExerciseType: String, CaseIterable, Identifiable, Codable {
+    // 하체 (스쿼트 패턴)
     case squat = "스쿼트"
+    case wideSquat = "와이드 스쿼트"
+    case jumpSquat = "점프 스쿼트"
+    // 상체 (푸쉬업 패턴)
     case pushUp = "푸쉬업"
+    case kneePushUp = "무릎 푸쉬업"
+    case widePushUp = "와이드 푸쉬업"
+    case inclinePushUp = "인클라인 푸쉬업"
+    // 코어 (플랭크 패턴)
     case plank = "플랭크"
+    case sidePlank = "사이드 플랭크"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .squat: return "figure.walk"
-        case .pushUp: return "figure.roll"
-        case .plank: return "figure.mind.and.body"
+        case .squat, .wideSquat: return "figure.strengthtraining.functional"
+        case .jumpSquat: return "figure.highintensity.intervaltraining"
+        case .pushUp, .kneePushUp, .widePushUp, .inclinePushUp: return "figure.cross.training"
+        case .plank, .sidePlank: return "figure.core.training"
         }
     }
 }

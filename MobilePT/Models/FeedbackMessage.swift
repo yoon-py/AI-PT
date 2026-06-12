@@ -5,6 +5,7 @@ enum FeedbackType {
     case encouragement
     case repCount
     case positionWarning
+    case coaching      // LLM이 생성한 코칭 문장
 }
 
 struct FeedbackMessage: Identifiable {
